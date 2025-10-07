@@ -1,0 +1,3 @@
+window.APP_CONFIG = {
+  GENERATIVE_API_KEY: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyB4TAoQwsrlEKkZJyx6FV0BY6W2helZhHc",
+};

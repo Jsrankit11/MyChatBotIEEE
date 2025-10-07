@@ -1,27 +1,60 @@
-// Clean, robust client-side script for the chat app.
-// - No API keys are stored here. Use config.js or the temporary banner flow to provide a key.
-
+// ------------------------------
+// GLOBAL CHAT ELEMENTS & STATE
+// ------------------------------
 const prompt = document.querySelector('#prompt');
 const submitbtn = document.querySelector('#submit');
 const chatContainer = document.querySelector('.chat-container');
 const imagebtn = document.querySelector('#image');
-const image = document.querySelector('#image img');
+const imageIcon = document.querySelector('#image .material-icons');
 const imageinput = document.querySelector('#image input');
+const logoutBtn = document.getElementById('logoutBtn');
+const themeToggle = document.getElementById('themeToggle');
+const userInfoEl = document.getElementById('userInfo');
 
 let user = { message: null, file: { mime_type: null, data: null } };
 
-// Use the provided Api_Url constant (will be used first). If empty, fall back
-// to config or temp key.
+// ⭐️ KEEPING YOUR ORIGINAL API CONFIGURATION (gemini-2.0-flash with key)
 const Api_Url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyB4TAoQwsrlEKkZJyx6FV0BY6W2helZhHc";
 
 function getApiUrl() {
-  if (Api_Url) return Api_Url;
-  const base = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=';
-  const key = (window.APP_CONFIG && window.APP_CONFIG.GENERATIVE_API_KEY) || localStorage.getItem('TEMP_API_KEY');
-  if (!key) return null;
-  return base + encodeURIComponent(key);
+  // ⭐️ FIX: Always return the hardcoded URL since the intent is not to use 
+  // local storage or config for the API key.
+  return Api_Url;
+}
+// END API CONFIGURATION
+
+// ------------------------------
+// VIEW SWITCHING FUNCTIONS (FIX)
+// ------------------------------
+function showView(viewId) {
+  document.querySelectorAll('.app-view').forEach(view => {
+    view.style.display = 'none';
+  });
+  const view = document.getElementById(viewId);
+  if (view) {
+    view.style.display = (viewId === 'chatView') ? 'flex' : 'flex';
+  }
+  // Update user info header when showing chat
+  if (viewId === 'chatView') {
+    const current = localStorage.getItem('currentUser');
+    if (userInfoEl && current) userInfoEl.textContent = `Signed in as ${current}`;
+  }
 }
 
+function showChat() { showView('chatView'); }
+function showLogin() { showView('loginView'); }
+function showRegister() { showView('registerView'); }
+
+function handleLogout() {
+  localStorage.removeItem('loggedIn');
+  localStorage.removeItem('currentUser');
+  localStorage.removeItem('TEMP_API_KEY');
+  showLogin();
+}
+
+// ------------------------------
+// UTILITY FUNCTIONS
+// ------------------------------
 function createChatBox(html, classes) {
   const div = document.createElement('div');
   div.innerHTML = html;
@@ -34,138 +67,258 @@ function scrollToBottom() {
   chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
 }
 
-function showApiBanner() {
-  if (!chatContainer) return;
-  if (document.querySelector('.api-banner')) return; // only once
-  const banner = document.createElement('div');
-  banner.className = 'api-banner';
-  banner.innerHTML = `
-    <div style="flex:1">API key not configured. You can create a local <code>config.js</code> or enter a temporary key to test.</div>
-    <div style="display:flex;gap:8px">
-      <button id="api-enter" class="btn">Enter key</button>
-      <button id="api-clear" class="btn-outline">Clear key</button>
-    </div>`;
-  banner.style.cssText = 'display:flex;align-items:center;padding:12px 14px;margin:10px 0;border-radius:12px;background:#fff3cd;color:#856404';
-  chatContainer.insertBefore(banner, chatContainer.firstChild);
-  document.getElementById('api-enter').addEventListener('click', () => {
-    const k = prompt('Enter temporary API key (will be stored in localStorage for testing):');
-    if (k) {
-      localStorage.setItem('TEMP_API_KEY', k.trim());
-      banner.remove();
-    }
-  });
-  document.getElementById('api-clear').addEventListener('click', () => {
-    localStorage.removeItem('TEMP_API_KEY');
-    banner.remove();
-  });
+// Auth Utils
+function getUsers() {
+  try {
+    return JSON.parse(localStorage.getItem('users') || '{}');
+  } catch (e) {
+    console.error("Error parsing users from localStorage:", e);
+    return {};
+  }
 }
 
+function setUsers(users) {
+  try {
+    localStorage.setItem('users', JSON.stringify(users));
+  } catch (e) {
+    console.error("Error saving users to localStorage:", e);
+  }
+}
+
+// Theme Utils
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+function applyTheme() {
+  const mode = localStorage.getItem('theme') || 'dark';
+  if (mode === 'light') document.body.classList.add('light-mode');
+  else document.body.classList.remove('light-mode');
+}
+
+// ------------------------------
+// API & CHAT LOGIC (Preserved Markdown Fix)
+// ------------------------------
 async function generateResponse(aiChatBox) {
   const text = aiChatBox.querySelector('.ai-chat-area');
   const apiUrl = getApiUrl();
+
+  text.innerHTML = '<span class="loader"></span> Generating response...';
+
   const RequestOption = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: user.message }].concat(user.file.data ? [{ inline_data: user.file }] : []) }]
+      contents: [{ parts: [{ text: user.message }].concat(user.file.data ? [{ inlineData: user.file }] : []) }]
     })
   };
 
   try {
     if (!apiUrl) {
-      showApiBanner();
-      text.innerHTML = 'API key not configured. Enter a temporary key or create config.js as described in README.';
+      text.innerHTML = 'API URL is empty. Please check API configuration.';
       return;
     }
+
     const response = await fetch(apiUrl, RequestOption);
     const data = await response.json();
-    const apiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text?.replace(/\*\*(.*?)\*\*/g, '$1')?.trim();
-    text.innerHTML = apiResponse || 'No response from API.';
+
+    const apiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    // Use marked.parse() to convert the markdown text to HTML
+    if (apiText) {
+      text.innerHTML = marked.parse(apiText);
+    } else {
+      text.innerHTML = 'No response from API. Check API key and rate limits.';
+    }
+
   } catch (err) {
-    console.error(err);
-    text.innerHTML = 'Error calling API. See console.';
+    console.error('API Error:', err);
+    text.innerHTML = 'Error calling API. See console for details.';
   } finally {
     scrollToBottom();
-    if (image) image.src = 'user.png';
-    if (image) image.classList.remove('choose');
+    if (imageIcon) imageIcon.classList.remove('choose');
     user.file = { mime_type: null, data: null };
   }
 }
 
 function handlechatResponse(userMessage) {
-  user.message = userMessage;
-  const html = `
-    <img src="user.png" alt="" id="userImage" width="8%">
+  if (!userMessage && !user.file.data) return;
+
+  user.message = userMessage || (user.file.data ? "Analyze this image." : "");
+
+  const userHtml = `
+    <div class="avatar material-icons" title="You">person</div>
     <div class="user-chat-area">
-      ${user.message}
-      ${user.file.data ? `<img src="data:${user.file.mime_type};base64,${user.file.data}" class="chooseimg" />` : ''}
+      ${userMessage}
+      ${user.file.data ? `<img src="data:${user.file.mime_type};base64,${user.file.data}" class="uploaded-img" />` : ''}
+      <span class="timestamp">${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>`;
+
   if (prompt) prompt.value = '';
-  const userChatBox = createChatBox(html, 'user-chat-box');
+  const userChatBox = createChatBox(userHtml, 'user-chat-box');
   if (chatContainer) chatContainer.appendChild(userChatBox);
   scrollToBottom();
 
   setTimeout(() => {
-    const html2 = `<img src="ai.png" alt="" id="aiImage" width="10%"><div class="ai-chat-area"><img src="loading.webp" alt="" class="load" width="50px"></div>`;
-    const aiChatBox = createChatBox(html2, 'ai-chat-box');
+    const aiHtml = `
+      <div class="avatar ai-avatar material-icons" title="Gemini AI">auto_awesome</div>
+      <div class="ai-chat-area">
+        <span class="loader"></span> Generating response...
+      </div>`;
+
+    const aiChatBox = createChatBox(aiHtml, 'ai-chat-box');
     if (chatContainer) chatContainer.appendChild(aiChatBox);
     generateResponse(aiChatBox);
   }, 600);
 }
 
-// events
-if (prompt) {
-  prompt.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handlechatResponse(prompt.value.trim());
+// ------------------------------
+// LOGIN/REGISTER HANDLERS (FIXED NAVIGATION)
+// ------------------------------
+function initializeDefaultUser() {
+  let users = getUsers();
+  if (Object.keys(users).length === 0) {
+    users = { "user": "password" }; // Default credentials
+    setUsers(users);
+  }
+}
+
+// LOGIN FORM HANDLER
+document.getElementById("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const messageEl = document.getElementById('loginMessage');
+  messageEl.textContent = 'Verifying credentials...';
+  messageEl.style.color = '#FFC107';
+
+  const user = document.getElementById("username").value.trim();
+  const pass = document.getElementById("password").value;
+
+  const users = getUsers();
+
+  setTimeout(() => {
+    if (users[user] && users[user] === pass) {
+      messageEl.textContent = 'Login successful! Redirecting...';
+      messageEl.style.color = 'var(--action-color)';
+
+      localStorage.setItem("loggedIn", "true");
+      localStorage.setItem("currentUser", user);
+
+      showChat();
+    } else {
+      messageEl.textContent = 'Invalid username or password';
+      messageEl.style.color = 'var(--error-color)';
+
+      document.getElementById("username").value = '';
+      document.getElementById("password").value = '';
+      document.getElementById("username").focus();
     }
-  });
-}
-if (submitbtn) submitbtn.addEventListener('click', () => handlechatResponse(prompt.value.trim()));
-
-if (imageinput) {
-  imageinput.addEventListener('change', () => {
-    const file = imageinput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64string = e.target.result.split(',')[1];
-      user.file = { mime_type: file.type, data: base64string };
-      if (image) image.src = `data:${user.file.mime_type};base64,${user.file.data}`;
-      if (image) image.classList.add('choose');
-    };
-    reader.readAsDataURL(file);
-  });
-}
-if (imagebtn) imagebtn.addEventListener('click', () => imagebtn.querySelector('input').click());
-
-// Auth & theme wiring
-const logoutBtn = document.getElementById('logoutBtn');
-const themeToggle = document.getElementById('themeToggle');
-const userInfoEl = document.getElementById('userInfo');
-if (userInfoEl) {
-  const current = localStorage.getItem('currentUser');
-  if (current) userInfoEl.textContent = `Signed in as ${current}`;
-}
-if (logoutBtn) {
-  logoutBtn.addEventListener('click', () => {
-    localStorage.removeItem('loggedIn');
-    localStorage.removeItem('currentUser');
-    window.location.href = 'login.html';
-  });
-}
-
-function applyTheme() {
-  const mode = localStorage.getItem('theme') || 'dark';
-  if (mode === 'light') document.documentElement.classList.add('light-mode');
-  else document.documentElement.classList.remove('light-mode');
-}
-applyTheme();
-if (themeToggle) themeToggle.addEventListener('click', () => {
-  const isLight = document.documentElement.classList.toggle('light-mode');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  }, 500);
 });
 
-// show banner if no API key yet and on first load
-if (!getApiUrl()) setTimeout(showApiBanner, 600);
+// REGISTER FORM HANDLER
+document.getElementById("registerForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const messageEl = document.getElementById('registerMessage');
+  const usernameInput = document.getElementById('regUsername');
+  const passwordInput = document.getElementById('regPassword');
+
+  messageEl.textContent = 'Processing registration...';
+  messageEl.style.color = '#FFC107';
+
+  const user = usernameInput.value.trim();
+  const pass = passwordInput.value;
+
+  if (user.length < 3) {
+    messageEl.textContent = 'Username must be at least 3 characters.';
+    messageEl.style.color = 'var(--error-color)';
+    return;
+  }
+  if (pass.length < 4) {
+    messageEl.textContent = 'Password must be at least 4 characters.';
+    messageEl.style.color = 'var(--error-color)';
+    return;
+  }
+
+  let users = getUsers();
+
+  setTimeout(() => {
+    if (users[user]) {
+      messageEl.textContent = 'Username already taken. Please choose another.';
+      messageEl.style.color = 'var(--error-color)';
+      usernameInput.focus();
+    } else {
+      users[user] = pass;
+      setUsers(users);
+
+      messageEl.textContent = 'Registration successful! Redirecting to login...';
+      messageEl.style.color = 'var(--action-color)';
+
+      setTimeout(() => {
+        showLogin();
+      }, 1000);
+    }
+  }, 500);
+});
+
+// ------------------------------
+// INITIALIZATION & EVENT LISTENERS
+// ------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  applyTheme();
+  initializeDefaultUser();
+
+  if (localStorage.getItem("loggedIn") === "true") {
+    showChat();
+  } else {
+    showLogin();
+  }
+
+  if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+  if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+
+  if (prompt) {
+    prompt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handlechatResponse(prompt.value.trim());
+      }
+    });
+  }
+  if (submitbtn) submitbtn.addEventListener('click', () => handlechatResponse(prompt.value.trim()));
+
+  if (imageinput) {
+    imageinput.addEventListener('change', () => {
+      const file = imageinput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64string = e.target.result.split(',')[1];
+        user.file = { mimeType: file.type, data: base64string };
+        if (imageIcon) imageIcon.classList.add('choose');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if (imagebtn) imagebtn.addEventListener('click', () => imagebtn.querySelector('input').click());
+
+  document.getElementById('registerLink').addEventListener('click', showRegister);
+  document.getElementById('loginLink').addEventListener('click', showLogin);
+
+  ['username', 'password'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener('focus', () => {
+      document.getElementById('loginMessage').textContent = '';
+      document.getElementById('loginMessage').style.color = '';
+    });
+  });
+
+  ['regUsername', 'regPassword'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input) input.addEventListener('focus', () => {
+      document.getElementById('registerMessage').textContent = '';
+      document.getElementById('registerMessage').style.color = '';
+    });
+  });
+});

@@ -1,0 +1,89 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1f1f1f, #3a3a3a);
+  color: white;
+}
+
+.login-container {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+  backdrop-filter: blur(10px);
+}
+
+
+.login-head { margin-bottom: 10px }
+
+.primary { background: linear-gradient(90deg,#4caf50,#2e7d32); border: none; color: white; padding: 12px; border-radius: 10px; width: 100%; font-size: 18px; cursor: pointer }
+
+.login-actions { display:flex; gap:12px; justify-content:center; align-items:center; margin-top:12px }
+.btn-outline { padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); color:white; text-decoration:none }
+
+
+h2 {
+  margin-bottom: 10px;
+  font-size: 2em;
+}
+
+.subtitle {
+  color: #bbb;
+  margin-bottom: 25px;
+}
+
+form input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 16px;
+}
+
+form button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #4caf50;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+form button:hover {
+  background: #45a049;
+}
+
+.info {
+  margin-top: 15px;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.message {
+  margin-top: 10px;
+  min-height: 20px;
+  font-size: 14px;
+}
+
+@media (max-width: 480px) {
+  .login-container { padding: 24px; max-width: 360px; }
+  h2 { font-size: 1.6em }
+}

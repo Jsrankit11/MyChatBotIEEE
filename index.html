@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <h3>Powered by Ankit IGL <span id="userInfo" class="user-info"></span></h3>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI ChatBot</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <script>
+    // Redirect to login if not authenticated
+    if (localStorage.getItem("loggedIn") !== "true") {
+      window.location.href = "login.html";
+    }
+  </script>
+
+  <!-- HEADER -->
+  <header>
+    <h3>Powered by Ankit IGL</h3>
+    <div class="header-buttons">
+      <button id="themeToggle" title="Toggle Dark/Light Mode">🌙</button>
+      <button id="logoutBtn" title="Logout">🚪</button>
+    </div>
+  </header>
+
+  <!-- CHAT AREA -->
+  <div class="chat-container">
+    <div class="ai-chat-box">
+      <img src="ai.png" alt="" id="aiImage" width="10%">
+      <div class="ai-chat-area">Hello! How can I help you today?</div>
+    </div>
+  </div>
+
+  <!-- INPUT AREA -->
+  <div class="prompt-area">
+    <input type="text" id="prompt" placeholder="Message..." />
+    <button id="image">
+      <img src="user.png" alt="attach" />
+      <input type="file" accept="image/*" hidden />
+    </button>
+    <button id="submit"><img src="submit.svg" alt="" /></button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
